@@ -1,0 +1,6 @@
+name: CustomExperience
+version: ${project.version}
+main: otterbk.mcplugin.Main
+authors: [ otterbk ]
+description: 경험치 수정 플러그인
+website: https://github.com/OtterBK
