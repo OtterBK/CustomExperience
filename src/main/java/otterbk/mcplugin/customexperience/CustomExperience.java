@@ -1,9 +1,12 @@
 package otterbk.mcplugin.customexperience;
 
 import com.sun.org.apache.bcel.internal.generic.RETURN;
+import net.md_5.bungee.api.ChatMessageType;
+import net.md_5.bungee.api.chat.ComponentBuilder;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Sound;
+import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.enchantments.Enchantment;
@@ -13,7 +16,9 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerExpChangeEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerLevelChangeEvent;
+import org.bukkit.event.server.ServerCommandEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -40,6 +45,8 @@ public class CustomExperience implements Listener {
     protected List<Inventory> experienceEditorUI = new ArrayList<Inventory>();
     protected Inventory baseUIforExperienceEditor;
 
+    protected HashMap<String, Integer> leftExprMap = new HashMap<>();
+
     protected boolean isDebug = false;
 
     public CustomExperience(Plugin serverPlugin)
@@ -62,6 +69,8 @@ public class CustomExperience implements Listener {
 
         loadExperienceInfoMap();
         refreshExperienceUI();
+
+        uiTimer();
     }
 
     public boolean loadExperienceInfoMap()
@@ -245,6 +254,7 @@ public class CustomExperience implements Listener {
         player.sendMessage("");
         player.sendMessage(MS+"/경험치 설정 <시작레벨> <끝레벨> <필요경험치> - §b<시작레벨> ~ <끝레벨> 사이에 필요한 경험치를 설정합니다.");
         player.sendMessage(MS+"/경험치 편집 - 설정한 경험치들을 확인하거나 삭제합니다.");
+        player.sendMessage(MS+"/경험치 지급 <대상닉네임> <지급량> - <대상닉네임>에게 <지급량>만큼 경험치를 지급합니다.");
         player.sendMessage("");
     }
 
@@ -315,142 +325,40 @@ public class CustomExperience implements Listener {
         return null;
     }
 
-    /* 이벤트 */
-
-    @EventHandler
-    public void onPlayerCommand(PlayerCommandPreprocessEvent evt)
+    public boolean giveExperience(String targetName, String amountString)
     {
-        String inputCommand = evt.getMessage();
-        String commands[] = inputCommand.split(" ");
-
-        if(commands.length == 0) return;
-
-        Player inputPlayer = evt.getPlayer();
-        String mainCommand = commands[0];
-
-        if(mainCommand.equalsIgnoreCase("/경험치") && inputPlayer.isOp())
+        Player targetPlayer = null;
+        int amount = 0;
+        try
         {
-            evt.setCancelled(true);
-            inputPlayer.playSound(inputPlayer.getLocation(), Sound.BLOCK_STONE_PLACE, 1.0f, 0.5f);
+            targetPlayer = this.serverPlugin.getServer().getPlayer(targetName);
+            if(targetPlayer == null) return false;
 
-            if(commands.length > 1)
-            {
-                if(commands[1].equalsIgnoreCase("설정"))
-                {
-                    if(commands.length == 2)
-                    {
-                        inputPlayer.sendMessage("");
-                        inputPlayer.sendMessage(MS+"<시작레벨> 값을 입력해주세요.");
-                        inputPlayer.sendMessage(MS+"/경험치 설정 §c<시작레벨>§f <끝레벨> <필요경험치>");
-                        inputPlayer.sendMessage("");
-                        return;
-                    }
-
-                    if(commands.length == 3)
-                    {
-                        inputPlayer.sendMessage("");
-                        inputPlayer.sendMessage(MS+"<끝레벨> 값을 입력해주세요.");
-                        inputPlayer.sendMessage(MS+"/경험치 설정 <시작레벨> §c<끝레벨>§f <필요경험치>");
-                        inputPlayer.sendMessage("");
-                        return;
-                    }
-
-                    if(commands.length == 4)
-                    {
-                        inputPlayer.sendMessage("");
-                        inputPlayer.sendMessage(MS+"<필요경험치> 값을 입력해주세요.");
-                        inputPlayer.sendMessage(MS+"/경험치 설정 <시작레벨> <끝레벨> §c<필요경험치>§f");
-                        return;
-                    }
-
-                    String startLevel = commands[2];
-                    String endLevel = commands[3];
-                    String requireExpr = commands[4];
-
-                    if(addCustomExperience(startLevel, endLevel, requireExpr) == false)
-                    {
-                        inputPlayer.sendMessage("");
-                        inputPlayer.sendMessage(MS + "경험치 설정 정보를 추가하지 못했습니다. 입력 값을 확인해주세요.");
-                        inputPlayer.sendMessage(MS + "<시작레벨> 값은 0~21863 까지만 입력 설정 가능합니다.");
-                        inputPlayer.sendMessage(MS + "<끝레벨> 값은 0~21863 까지만 입력 설정 가능합니다.");
-                        inputPlayer.sendMessage(MS + "<필요경험치> 값은 양수여야합니다.");
-                        inputPlayer.sendMessage("");
-                    }
-                    else
-                    {
-                        inputPlayer.playSound(inputPlayer.getLocation(), Sound.BLOCK_ANVIL_USE, 1.0f, 1.25f);
-                        inputPlayer.sendMessage("");
-                        inputPlayer.sendMessage(MS + "경험치 설정 정보를 추가하였습니다.");
-                        inputPlayer.sendMessage("");
-                    }
-
-                    return;
-                }
-
-                if(commands[1].equalsIgnoreCase("편집"))
-                {
-                    if(experienceEditorUI.size() > 0)
-                    {
-                        inputPlayer.playSound(inputPlayer.getLocation(), Sound.BLOCK_ANVIL_PLACE, 1.0f, 1.25f);
-                        inputPlayer.openInventory(experienceEditorUI.get(0));
-                    }
-
-                    return;
-                }
-            }
-
-            showCommandHelp(inputPlayer);
+            amount = Integer.parseInt(amountString);
         }
+        catch (Exception exc)
+        {
+            return false;
+        }
+        return giveExperience(targetPlayer, amount);
     }
 
-    @EventHandler
-    public void onInventoryClick(InventoryClickEvent evt)
+    public boolean giveExperience(Player player, int amount)
     {
-        if(!(evt.getWhoClicked() instanceof Player)) return;
-
-        Player clickedPlayer = (Player) evt.getWhoClicked();
-        Inventory clickedInventory = evt.getClickedInventory();
-        ItemStack clickedItem = evt.getCurrentItem();
-
-        if(clickedInventory == null || clickedItem == null) return;
-
-        if(clickedInventory.getTitle() == null || !(clickedInventory.getTitle().equals(experienceEditorUITitle))) return;
-
-        evt.setCancelled(true);
-
-        if(evt.isLeftClick())
+        applyCustomExperience(player, amount);
+        if(isDebug)
         {
-            if(clickedItem.getType() != pageMaterial || clickedItem.getItemMeta().getLocalizedName() == null ) return;
-
-            int pageToMove = Integer.parseInt(clickedItem.getItemMeta().getLocalizedName());
-
-            clickedPlayer.openInventory(experienceEditorUI.get(pageToMove));
-            clickedPlayer.playSound(clickedPlayer.getLocation(), Sound.ENTITY_BAT_TAKEOFF, 1.0f, 2.5f);
+            this.serverPlugin.getLogger().info(MS+"[DEBUG] give Expr: " + player.getName() + ", " + amount);
         }
-
-        if(evt.isShiftClick() && evt.isRightClick()) //삭제
-        {
-            if(clickedItem.getType() != experienceInfoMaterial) return;
-
-            String indexString = clickedItem.getItemMeta().getLocalizedName();
-            if(indexString == null || indexString.equals("")) return;
-
-            removeCustomExperience(Integer.parseInt(indexString));
-            clickedPlayer.playSound(clickedPlayer.getLocation(), Sound.BLOCK_ANVIL_DESTROY, 1.0f, 1.25f);
-
-        }
+        return true;
     }
 
-    @EventHandler
-    public void onLevelUp(PlayerExpChangeEvent evt)
+    public void applyCustomExperience(Player player, int gainedExpr)
     {
-        Player player = evt.getPlayer();
-
         ExperienceInfo exprInfo = findExperienceInfo(player.getLevel());
         if(exprInfo == null) return;
 
         int requireExpr = exprInfo.requireExpr;
-        int gainedExpr = evt.getAmount();
         float nowExp = player.getExp();
 
         float calculatedGainedExpr = ((float)gainedExpr / (float)requireExpr);
@@ -496,8 +404,251 @@ public class CustomExperience implements Listener {
 
 
         player.setExp(additionalExpr);
+
+        int leftExpr = (int)((1 - additionalExpr) * requireExpr);
+        leftExprMap.put(player.getName(), leftExpr);
+    }
+
+    public void uiTimer()
+    {
+        Bukkit.getScheduler().scheduleSyncRepeatingTask(this.serverPlugin, new Runnable()
+        {
+            public void run()
+            {
+                for(Player player : CustomExperience.serverPlugin.getServer().getOnlinePlayers())
+                {
+                    int leftExpr = leftExprMap.get(player.getName());
+                    if(leftExpr != 0)
+                    {
+                        player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new ComponentBuilder("§c§l다음 레벨까지: " + leftExpr).create());
+                    }
+                }
+            }
+        }, 0l, 2l);
+    }
+
+    /* 이벤트 */
+
+    @EventHandler
+    public void onPlayerCommand(PlayerCommandPreprocessEvent evt)
+    {
+        String inputCommand = evt.getMessage();
+        String commands[] = inputCommand.split(" ");
+
+        if(commands.length == 0) return;
+
+        Player inputPlayer = evt.getPlayer();
+        String mainCommand = commands[0];
+
+        if(mainCommand.equalsIgnoreCase("/경험치") && inputPlayer.isOp())
+        {
+            evt.setCancelled(true);
+            inputPlayer.playSound(inputPlayer.getLocation(), Sound.BLOCK_STONE_PLACE, 1.0f, 0.5f);
+
+            if(commands.length > 1)
+            {
+                if(commands[1].equalsIgnoreCase("설정"))
+                {
+                    if(commands.length == 2)
+                    {
+                        inputPlayer.sendMessage("");
+                        inputPlayer.sendMessage(MS+"<시작레벨> 값을 입력해주세요.");
+                        inputPlayer.sendMessage(MS+"/경험치 설정 §c<시작레벨>§f <끝레벨> <필요경험치>");
+                        inputPlayer.sendMessage("");
+                        return;
+                    }
+
+                    if(commands.length == 3)
+                    {
+                        inputPlayer.sendMessage("");
+                        inputPlayer.sendMessage(MS+"<끝레벨> 값을 입력해주세요.");
+                        inputPlayer.sendMessage(MS+"/경험치 설정 <시작레벨> §c<끝레벨>§f <필요경험치>");
+                        inputPlayer.sendMessage("");
+                        return;
+                    }
+
+                    if(commands.length == 4)
+                    {
+                        inputPlayer.sendMessage("");
+                        inputPlayer.sendMessage(MS+"<필요경험치> 값을 입력해주세요.");
+                        inputPlayer.sendMessage(MS+"/경험치 설정 <시작레벨> <끝레벨> §c<필요경험치>§f");
+                        inputPlayer.sendMessage("");
+                        return;
+                    }
+
+                    String startLevel = commands[2];
+                    String endLevel = commands[3];
+                    String requireExpr = commands[4];
+
+                    if(addCustomExperience(startLevel, endLevel, requireExpr) == false)
+                    {
+                        inputPlayer.sendMessage("");
+                        inputPlayer.sendMessage(MS + "경험치 설정 정보를 추가하지 못했습니다. 입력 값을 확인해주세요.");
+                        inputPlayer.sendMessage(MS + "<시작레벨> 값은 0~21863 까지만 입력 설정 가능합니다.");
+                        inputPlayer.sendMessage(MS + "<끝레벨> 값은 0~21863 까지만 입력 설정 가능합니다.");
+                        inputPlayer.sendMessage(MS + "<필요경험치> 값은 양수여야합니다.");
+                        inputPlayer.sendMessage("");
+                    }
+                    else
+                    {
+                        inputPlayer.playSound(inputPlayer.getLocation(), Sound.BLOCK_ANVIL_USE, 1.0f, 1.25f);
+                        inputPlayer.sendMessage("");
+                        inputPlayer.sendMessage(MS + "경험치 설정 정보를 추가하였습니다.");
+                        inputPlayer.sendMessage("");
+                    }
+
+                    return;
+                }
+
+                if(commands[1].equalsIgnoreCase("편집"))
+                {
+                    if(experienceEditorUI.size() > 0)
+                    {
+                        inputPlayer.playSound(inputPlayer.getLocation(), Sound.BLOCK_ANVIL_PLACE, 1.0f, 1.25f);
+                        inputPlayer.openInventory(experienceEditorUI.get(0));
+                    }
+
+                    return;
+                }
+
+                if (commands[1].equalsIgnoreCase("지급")) {
+                    if (commands.length == 2) {
+                        inputPlayer.sendMessage("");
+                        inputPlayer.sendMessage(MS + "<대상닉네임> 값을 입력해주세요.");
+                        inputPlayer.sendMessage(MS + "/경험치 지급 §c<대상닉네임>§f <지급량>");
+                        inputPlayer.sendMessage("");
+                        return;
+                    }
+
+                    if (commands.length == 3) {
+                        inputPlayer.sendMessage("");
+                        inputPlayer.sendMessage(MS + "<지급량> 값을 입력해주세요.");
+                        inputPlayer.sendMessage(MS + "/경험치 지급 §f<대상닉네임>§c <지급량>");
+                        inputPlayer.sendMessage("");
+                        return;
+                    }
+
+                    String targetName = commands[2];
+                    String amount = commands[3];
+
+                    if(giveExperience(targetName, amount) == false)
+                    {
+                        inputPlayer.sendMessage(MS+targetName+"에게 " + amount + "만큼 경험치를 지급하지 못했습니다.");
+                        return;
+                    }
+
+                    inputPlayer.sendMessage(MS+targetName+"에게 " + amount + "만큼 경험치를 지급했습니다.");
+                    return;
+                }
+            }
+
+            showCommandHelp(inputPlayer);
+        }
+    }
+
+    @EventHandler
+    public void onServerCommand(ServerCommandEvent evt)
+    {
+        String inputCommand = evt.getCommand();
+        String commands[] = inputCommand.split(" ");
+
+        if(commands.length == 0) return;
+
+        CommandSender sender = evt.getSender();
+        String mainCommand = commands[0];
+
+        if(mainCommand.equalsIgnoreCase("/경험치") && sender.isOp()) {
+            evt.setCancelled(true);
+
+            if (commands.length > 1) {
+                if (commands[1].equalsIgnoreCase("지급")) {
+                    if (commands.length == 2) {
+                        sender.sendMessage("");
+                        sender.sendMessage(MS + "<대상닉네임> 값을 입력해주세요.");
+                        sender.sendMessage(MS + "/경험치 지급 §c<대상닉네임>§f <지급량>");
+                        sender.sendMessage("");
+                        return;
+                    }
+
+                    if (commands.length == 3) {
+                        sender.sendMessage("");
+                        sender.sendMessage(MS + "<지급량> 값을 입력해주세요.");
+                        sender.sendMessage(MS + "/경험치 지급 §f<대상닉네임>§c <지급량>");
+                        sender.sendMessage("");
+                        return;
+                    }
+
+                    String targetName = commands[2];
+                    String amount = commands[3];
+
+                    if(giveExperience(targetName, amount) == false)
+                    {
+                        sender.sendMessage(MS+targetName+"에게 " + amount + "만큼 경험치를 지급하지 못했습니다.");
+                        return;
+                    }
+
+                    sender.sendMessage(MS+targetName+"에게 " + amount + "만큼 경험치를 지급했습니다.");
+                    return;
+                }
+            }
+        }
+    }
+
+    @EventHandler
+    public void onInventoryClick(InventoryClickEvent evt)
+    {
+        if(!(evt.getWhoClicked() instanceof Player)) return;
+
+        Player clickedPlayer = (Player) evt.getWhoClicked();
+        Inventory clickedInventory = evt.getClickedInventory();
+        ItemStack clickedItem = evt.getCurrentItem();
+
+        if(clickedInventory == null || clickedItem == null) return;
+
+        if(clickedInventory.getTitle() == null || !(clickedInventory.getTitle().equals(experienceEditorUITitle))) return;
+
+        evt.setCancelled(true);
+
+        if(evt.isLeftClick())
+        {
+            if(clickedItem.getType() != pageMaterial || clickedItem.getItemMeta().getLocalizedName() == null ) return;
+
+            int pageToMove = Integer.parseInt(clickedItem.getItemMeta().getLocalizedName());
+
+            clickedPlayer.openInventory(experienceEditorUI.get(pageToMove));
+            clickedPlayer.playSound(clickedPlayer.getLocation(), Sound.ENTITY_BAT_TAKEOFF, 1.0f, 2.5f);
+        }
+
+        if(evt.isShiftClick() && evt.isRightClick()) //삭제
+        {
+            if(clickedItem.getType() != experienceInfoMaterial) return;
+
+            String indexString = clickedItem.getItemMeta().getLocalizedName();
+            if(indexString == null || indexString.equals("")) return;
+
+            removeCustomExperience(Integer.parseInt(indexString));
+            clickedPlayer.playSound(clickedPlayer.getLocation(), Sound.BLOCK_ANVIL_DESTROY, 1.0f, 1.25f);
+
+        }
+    }
+
+    @EventHandler
+    public void onExpChange(PlayerExpChangeEvent evt)
+    {
+        Player player = evt.getPlayer();
+        int gainedExpr = evt.getAmount();
+
+        applyCustomExperience(player, gainedExpr);
+
         evt.setAmount(0);
 
+    }
+
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent evt)
+    {
+        Player player = evt.getPlayer();
+        applyCustomExperience(player, 0);
     }
 
 }
