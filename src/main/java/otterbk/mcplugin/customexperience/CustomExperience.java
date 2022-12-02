@@ -48,6 +48,7 @@ public class CustomExperience implements Listener {
     protected HashMap<String, Integer> leftExprMap = new HashMap<>();
 
     protected boolean isDebug = false;
+    protected boolean enableExperienceUI = false;
 
     public CustomExperience(Plugin serverPlugin)
     {
@@ -63,6 +64,13 @@ public class CustomExperience implements Listener {
             this.serverPlugin.getLogger().info(MS+"[DEBUG] §b디버그 모드 활성화");
         }
 
+        this.enableExperienceUI = this.serverPlugin.getConfig().getBoolean("debug_mode");
+        if(this.enableExperienceUI)
+        {
+            this.serverPlugin.getLogger().info(MS+"[DEBUG] §bUI표시 활성화");
+            uiTimer();
+        }
+
         //메인UI설정
         baseUIforExperienceEditor = Bukkit.createInventory(null, 54, experienceEditorUITitle);
         //
@@ -70,7 +78,6 @@ public class CustomExperience implements Listener {
         loadExperienceInfoMap();
         refreshExperienceUI();
 
-        uiTimer();
     }
 
     public boolean loadExperienceInfoMap()
